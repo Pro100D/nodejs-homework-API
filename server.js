@@ -1,9 +1,8 @@
 import app from "./app.js";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
-dotenv.config();
+import dotenv from "dotenv";
 mongoose.set("strictQuery", true);
-
+dotenv.config();
 mongoose
   .connect(process.env.DB_HOST)
   .then(() => {

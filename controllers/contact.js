@@ -3,7 +3,9 @@ import HttpError from "../helpers/httpError.js";
 import Contact, { addSchema, favoriteSchema } from "../models/contactShema.js";
 
 const getAllContact = async (req, res) => {
-  const allContact = await Contact.find();
+  const { _id: owner } = req.user;
+
+  const allContact = await Contact.find({ owner });
   res.json(allContact);
 };
 
@@ -24,7 +26,9 @@ const addContact = async (req, res) => {
     throw HttpError(400, error.message);
   }
 
-  const contactAdd = await Contact.create(req.body);
+  const { _id: owner } = req.user;
+
+  const contactAdd = await Contact.create({ ...req.body, owner });
   res.status(201).json(contactAdd);
 };
 
