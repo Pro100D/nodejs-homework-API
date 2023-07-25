@@ -3,7 +3,17 @@ import HttpError from "../helpers/httpError.js";
 import Contact, { addSchema, favoriteSchema } from "../models/contactShema.js";
 
 const getAllContact = async (req, res) => {
-  const allContact = await Contact.find();
+  const { _id: owner } = req.user;
+  const { page = 1, limit = 10, favorite = false } = req.query;
+  const skip = (page - 1) * limit;
+
+  const allContact = favorite
+    ? await Contact.find({ favorite, owner })
+    : await Contact.find({ owner }, "-createdAd, -updateAd", {
+        skip,
+        limit,
+      });
+
   res.json(allContact);
 };
 
@@ -24,7 +34,9 @@ const addContact = async (req, res) => {
     throw HttpError(400, error.message);
   }
 
-  const contactAdd = await Contact.create(req.body);
+  const { _id: owner } = req.user;
+
+  const contactAdd = await Contact.create({ ...req.body, owner });
   res.status(201).json(contactAdd);
 };
 
