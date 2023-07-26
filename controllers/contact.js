@@ -8,7 +8,7 @@ const getAllContact = async (req, res) => {
   const skip = (page - 1) * limit;
 
   const allContact = favorite
-    ? await Contact.find({ favorite, owner })
+    ? await Contact.find({ favorite, owner }, "-createdAd, -updateAd")
     : await Contact.find({ owner }, "-createdAd, -updateAd", {
         skip,
         limit,
