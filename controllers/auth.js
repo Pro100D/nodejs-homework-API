@@ -7,12 +7,18 @@ import path from "path";
 import jimp from "jimp";
 
 import { ctrlWrapper } from "../decorators/ctrlWrapper.js";
-import User, { registerSchema, loginSchema } from "../models/userShema.js";
+import User, {
+  registerSchema,
+  loginSchema,
+  emailShema,
+} from "../models/userShema.js";
 import HttpError from "../helpers/httpError.js";
+import { nanoid } from "nanoid";
+import sendEmail from "../helpers/sendEmail.js";
 
 dotenv.config();
 
-const { SECRET_KEY } = process.env;
+const { SECRET_KEY, BASE_URL } = process.env;
 const avatarsDir = path.resolve("public", "avatars");
 
 const registerUser = async (req, res) => {
@@ -31,15 +37,75 @@ const registerUser = async (req, res) => {
 
   const hashPassword = await bcrypt.hash(password, 10);
 
+  const verificationToken = nanoid();
+
   const newUser = await User.create({
     ...req.body,
     password: hashPassword,
     avatarURL,
+    verificationToken,
   });
+
+  const verifyEmail = {
+    to: email,
+    subject: "Verify email",
+    html: `<a target="_blank" href="${BASE_URL}/api/auth/verify/${verificationToken}">Click verify email</a>`,
+  };
+
+  await sendEmail(verifyEmail);
 
   res.status(201).json({
     email: newUser.email,
     subscription: newUser.subscription,
+  });
+};
+
+const verifyEmail = async (req, res) => {
+  const { verificationToken } = req.params;
+
+  const user = await User.findOne({ verificationToken });
+
+  if (!user) {
+    throw HttpError(404, "User not found");
+  }
+
+  await User.findByIdAndUpdate(user._id, {
+    verify: true,
+    verificationToken: null,
+  });
+
+  res.json({
+    massage: "Verification successful",
+  });
+};
+
+const resendEmail = async (req, res) => {
+  const { error } = emailShema.validate(req.body);
+  if (error) {
+    throw HttpError(400, error.message);
+  }
+
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw HttpError(401, "Email not found");
+  }
+
+  if (user.verify) {
+    throw HttpError(400, "Verification has already been passed");
+  }
+
+  const verifyEmail = {
+    to: email,
+    subject: "Verify email",
+    html: `<a target="_blank" href="${BASE_URL}/api/auth/verify/${user.verificationToken}">Click verify email</a>`,
+  };
+
+  await sendEmail(verifyEmail);
+
+  res.json({
+    massage: "Verification email sent",
   });
 };
 
@@ -57,6 +123,9 @@ const logInUser = async (req, res) => {
     throw HttpError(401, "Email or password invalid");
   }
 
+  if (!user.verify) {
+    throw HttpError(401, "Email not verified");
+  }
   const passwordCompare = await bcrypt.compare(password, user.password);
 
   if (!passwordCompare) {
@@ -115,4 +184,6 @@ export default {
   getCurrentUser: ctrlWrapper(getCurrentUser),
   logOutUser: ctrlWrapper(logOutUser),
   updateAvatar: ctrlWrapper(updateAvatar),
+  verifyEmail: ctrlWrapper(verifyEmail),
+  resendEmail: ctrlWrapper(resendEmail),
 };
